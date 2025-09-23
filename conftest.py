@@ -20,33 +20,6 @@ DB_ACCESS_TOKEN = os.environ.get("DB_ACCESS_TOKEN")
 # 브라우저별 TestRail 런 ID 저장
 testrail_run_ids = {}
 
-# 디바이스 설정
-DEVICE_CONFIGS = {
-    "android_chrome": {
-        "user_agent": (
-            "Mozilla/5.0 (Linux; Android 11; SM-G991B) "
-            "Chrome/114.0.5735.196 Mobile Safari/537.36"
-        ),
-        "viewport": {"width": 412, "height": 915},
-        "is_mobile": True,
-        "device_scale_factor": 2.5,
-        "has_touch": True,
-        "locale": "ko-KR"
-    },
-    "android_firefox": {
-        "user_agent": (
-            "Mozilla/5.0 (Android 11; Mobile; rv:109.0) "
-            "Gecko/109.0 Firefox/109.0"
-        ),
-        "viewport": {"width": 412, "height": 915},
-        "is_mobile": True,
-        "device_scale_factor": 2.5,
-        "has_touch": True,
-        "locale": "ko-KR"
-    }
-}
-
-
 # TestRail API 클래스
 class TestRailAPI:
     def __init__(self):
@@ -108,95 +81,6 @@ class TestRailAPI:
             print(f"✅ TestRail 첨부 완료: {filename if isinstance(file_data, tuple) else 'screenshot.png'}")
         else:
             print(f"❌ TestRail 첨부 실패: {response.text}")
-
-
-# pytest 옵션 설정
-def pytest_addoption(parser):
-    parser.addoption("--browsers", action="store", default="chromium,firefox",
-                     help="Comma-separated list of browsers to test")
-    parser.addoption("--testrail", action="store_true", default=True,
-                     help="Enable TestRail integration")
-
-
-def pytest_configure(config):
-    config.browsers = config.getoption("--browsers").split(",")
-    config.testrail_enabled = config.getoption("--testrail")
-
-
-# 브라우저별 TestRail 런 생성
-@pytest.fixture(scope="session", autouse=True)
-def setup_testrail_runs(pytestconfig):
-    if pytestconfig.testrail_enabled:
-        api = TestRailAPI()
-        for browser in pytestconfig.browsers:
-            run_id = api.create_test_run(browser)
-            testrail_run_ids[browser] = run_id
-            print(f"✅ TestRail 런 생성: {browser} -> {run_id}")
-
-
-# 브라우저 타입 fixture (동시 실행 지원)
-@pytest.fixture(scope="function", params=["chromium", "firefox"])
-async def browser_type(request):
-    async with async_playwright() as p:
-        browser_launcher = getattr(p, request.param)
-        browser = await browser_launcher.launch(
-            headless=False,
-            args=["--disable-blink-features=AutomationControlled"]
-        )
-        yield browser
-        await browser.close()
-
-# 브라우저별 기본 디바이스 설정
-BROWSER_DEVICE_CONFIG = {
-    "chromium": {
-        "user_agent": (
-            "Mozilla/5.0 (Linux; Android 11; SM-G991B) "
-            "Chrome/114.0.5735.196 Mobile Safari/537.36"
-        ),
-        "viewport": {"width": 412, "height": 915},
-        "is_mobile": True,
-        "device_scale_factor": 2.5,
-        "has_touch": True,
-        "locale": "ko-KR"
-    },
-    "firefox": {
-        "user_agent": (
-            "Mozilla/5.0 (Android 11; Mobile; rv:109.0) "
-            "Gecko/109.0 Firefox/109.0"
-        ),
-        "viewport": {"width": 412, "height": 915},
-        "is_mobile": True,
-        "device_scale_factor": 2.5,
-        "has_touch": True,
-        "locale": "ko-KR"
-    }
-}
-
-# 컨텍스트 fixture (브라우저별 디바이스 1:1)
-@pytest.fixture(scope="function")
-async def context(browser_type: Browser, request) -> BrowserContext:
-    browser_name = request.param if hasattr(request, 'param') else browser_type.name
-    device = BROWSER_DEVICE_CONFIG.get(browser_name, BROWSER_DEVICE_CONFIG["chromium"])
-    context = await browser_type.new_context(**device)
-
-    # Stealth 우회용 init script
-    await context.add_init_script("""
-        Object.defineProperty(navigator, 'webdriver', {
-            get: () => undefined
-        });
-    """)
-
-    yield context
-    await context.close()
-
-
-# 페이지 fixture
-@pytest.fixture(scope="function")
-async def page(context: BrowserContext) -> Page:
-    page = await context.new_page()
-    page.set_default_timeout(10000)
-    yield page
-    await page.close()
 
 
 # 실패 시 아티팩트 캡처 및 TestRail 업로드
@@ -289,3 +173,92 @@ def pytest_runtest_setup(item):
         if marker.name in ['testrail_id', 'testrail_case_id']:
             item.testrail_case_id = marker.args[0]
             break
+
+
+# pytest 옵션 설정
+def pytest_addoption(parser):
+    parser.addoption("--browsers", action="store", default="chromium,firefox",
+                     help="Comma-separated list of browsers to test")
+    parser.addoption("--testrail", action="store_true", default=True,
+                     help="Enable TestRail integration")
+
+
+def pytest_configure(config):
+    config.browsers = config.getoption("--browsers").split(",")
+    config.testrail_enabled = config.getoption("--testrail")
+
+
+# 브라우저별 TestRail 런 생성
+@pytest.fixture(scope="session", autouse=True)
+def setup_testrail_runs(pytestconfig):
+    if pytestconfig.testrail_enabled:
+        api = TestRailAPI()
+        for browser in pytestconfig.browsers:
+            run_id = api.create_test_run(browser)
+            testrail_run_ids[browser] = run_id
+            print(f"✅ TestRail 런 생성: {browser} -> {run_id}")
+
+
+# 브라우저 타입 fixture (동시 실행 지원)
+@pytest.fixture(scope="function", params=["chromium", "firefox"])
+async def browser_type(request):
+    async with async_playwright() as p:
+        browser_launcher = getattr(p, request.param)
+        browser = await browser_launcher.launch(
+            headless=False,
+            args=["--disable-blink-features=AutomationControlled"]
+        )
+        yield browser
+        await browser.close()
+
+# 브라우저별 기본 디바이스 설정
+BROWSER_DEVICE_CONFIG = {
+    "chromium": {
+        "user_agent": (
+            "Mozilla/5.0 (Linux; Android 11; SM-G991B) "
+            "Chrome/114.0.5735.196 Mobile Safari/537.36"
+        ),
+        "viewport": {"width": 412, "height": 915},
+        "is_mobile": True,
+        "device_scale_factor": 2.5,
+        "has_touch": True,
+        "locale": "ko-KR"
+    },
+    "firefox": {
+        "user_agent": (
+            "Mozilla/5.0 (Android 11; Mobile; rv:109.0) "
+            "Gecko/109.0 Firefox/109.0"
+        ),
+        "viewport": {"width": 412, "height": 915},
+        "is_mobile": True,
+        "device_scale_factor": 2.5,
+        "has_touch": True,
+        "locale": "ko-KR"
+    }
+}
+
+# 컨텍스트 fixture (브라우저별 디바이스 1:1)
+@pytest.fixture(scope="function")
+async def context(browser_type: Browser, request) -> BrowserContext:
+    browser_name = request.param if hasattr(request, 'param') else browser_type.name
+    device = BROWSER_DEVICE_CONFIG.get(browser_name, BROWSER_DEVICE_CONFIG["chromium"])
+    context = await browser_type.new_context(**device)
+
+    # Stealth 우회용 init script
+    await context.add_init_script("""
+        Object.defineProperty(navigator, 'webdriver', {
+            get: () => undefined
+        });
+    """)
+
+    yield context
+    await context.close()
+
+
+# 페이지 fixture
+@pytest.fixture(scope="function")
+async def page(context: BrowserContext) -> Page:
+    page = await context.new_page()
+    page.set_default_timeout(10000)
+    yield page
+    await page.close()
