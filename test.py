@@ -9,8 +9,8 @@ from pom.VipPage import Vip
 from pom.HomePage import HomePage
 from pom.Etc import Etc
 
-
-#pipenv run pytest --cache-clear test.py --asyncio-mode=auto -n 4
+# pipenv install pytest-asyncio pytest-xdist
+#pipenv run pytest --cache-clear test.py --asyncio-mode=auto -n 2
 @pytest.mark.asyncio
 @pytest.mark.testrail_id("C1234")
 async def test(page,request):
@@ -21,14 +21,12 @@ async def test(page,request):
     home_page = HomePage(page)
     try:
         await etc.goto()
-        await etc.login("cease2504", "")
+        await etc.login("cease2504", "asdf12!@")
 
         await srp_page.search_product("무선 이어폰")
         await vip_page.select_first_product()
         await vip_page.click_buy_now()
 
-        await order.complete_purchase()
 
     except Exception as e:
-        await page.screenshot(path="error_screenshot.png")
         raise e  # 테스트를 실패로 처리

@@ -1,5 +1,6 @@
 import requests
 import time
+import pandas as pd
 
 def query_databricks(workspace_url: str, access_token: str, warehouse_id: str, sql: str):
     """
@@ -50,10 +51,31 @@ def query_databricks(workspace_url: str, access_token: str, warehouse_id: str, s
 
     return state_data.get("result", {})
 
+    # result = state_data.get("result", {})
+    #
+    # # 컬럼명 추출, 없으면 기본 이름 생성
+    # rows = result.get("data_array", [])
+    # columns_info = result.get("columns", [])
+    # if columns_info:
+    #     columns = [col.get("name", f"col{i}") for i, col in enumerate(columns_info)]
+    # else:
+    #     # 컬럼 정보가 없으면 0,1,2,...로 기본 생성
+    #     columns = [f"col{i}" for i in range(len(rows[0]))] if rows else []
+    #
+    # # 컬럼 전체 표시
+    # pd.set_option("display.max_columns", None)
+    #
+    # # 행 전체 표시 (많으면 주의)
+    # pd.set_option("display.max_rows", None)
+    #
+    # # 열 값 전체 길이 표시
+    # pd.set_option("display.max_colwidth", None)
+    # df = pd.DataFrame(rows, columns=columns)
+    # return df
 
 
 workspace_url = "https://adb-5971940266401983.3.azuredatabricks.net"
-access_token = "<your-access-token>"
+access_token = "  "
 warehouse_id = "8a389507a5bf8eb6"
 
 sql = "select * from baikald1xs.kafka_silver.ub_ad_cpc_click_gmkt where dt ='20250822' and item_no = '8000052576' and cguid = '11750814611572002332000000'"
